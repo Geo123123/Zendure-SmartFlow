@@ -1,0 +1,16 @@
+force_update:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        text:
+set_enabled:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        text:
+    enabled:
+      required: true
+      selector:
+        boolean:
