@@ -37,6 +37,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_HEADERS = {"content-type": "application/json; charset=UTF-8"}
+_TIMEOUT = ClientTimeout(total=4)
 
 
 @dataclass(slots=True)
@@ -99,6 +101,7 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
         self._enabled = self._option(CONF_ENABLED, DEFAULT_ENABLED)
         self._last_action = "idle"
         self._last_targets: dict[str, tuple[int, int, int]] = {}
+        self._message_id = 0
         self._session = async_get_clientsession(hass)
 
         super().__init__(
@@ -244,7 +247,7 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
             url = f"http://{device.host}/properties/report"
             try:
                 async with self._session.get(
-                    url, timeout=ClientTimeout(total=5)
+                    url, headers=_HEADERS, timeout=_TIMEOUT
                 ) as response:
                     response.raise_for_status()
                     payload = await response.json()
@@ -294,11 +297,23 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
         if requested_charge <= 0 or not available_reports:
             return targets
 
-        per_device = round(
-            max(0.0, min(requested_charge / len(available_reports), max_charge_per_device))
-        )
-        for report in available_reports:
-            targets[report.device.sn] = (1, 0, per_device)
+        weights = {
+            report.device.sn: max(
+                1.0, 100.0 - (report.soc if report.soc is not None else 50.0)
+            )
+            for report in available_reports
+        }
+        remaining_charge = requested_charge
+        remaining_weight = sum(weights.values())
+        for index, report in enumerate(available_reports):
+            if index == len(available_reports) - 1:
+                charge = remaining_charge
+            else:
+                charge = remaining_charge * weights[report.device.sn] / remaining_weight
+            charge = round(max(0.0, min(charge, max_charge_per_device)))
+            remaining_charge -= charge
+            remaining_weight -= weights[report.device.sn]
+            targets[report.device.sn] = (1, 0, charge)
         return targets
 
     async def _command_all_off(
@@ -342,10 +357,12 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
     ) -> None:
         """Write one Zendure device command via local ZenSDK HTTP API."""
         url = f"http://{device.host}/properties/write"
+        self._message_id += 1
         payload = {
+            "id": self._message_id,
             "sn": device.sn,
             "properties": {
-                "smartMode": 1,
+                "smartMode": 0 if output_limit == 0 and input_limit == 0 else 1,
                 "acMode": ac_mode,
                 "outputLimit": output_limit,
                 "inputLimit": input_limit,
@@ -353,7 +370,7 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
         }
         try:
             async with self._session.post(
-                url, json=payload, timeout=ClientTimeout(total=5)
+                url, json=payload, headers=_HEADERS, timeout=_TIMEOUT
             ) as response:
                 response.raise_for_status()
         except (ClientError, TimeoutError) as err:
