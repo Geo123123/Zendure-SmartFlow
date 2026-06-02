@@ -4,15 +4,52 @@ Home-Assistant-Custom-Integration fuer eine PV-Ueberschussladung mit drei Zendur
 
 ## Regelprinzip
 
-Zendure SmartFlow liest die Shelly-Netzleistung aus Home Assistant und steuert die drei Zendure-Geraete direkt ueber die lokale ZenSDK-HTTP-API.
+Zendure SmartFlow liest die Shelly-Netzleistung aus Home Assistant und regelt drei Zendure-Geraete auf Ueberschussladung.
 
 - Status lesen: `GET http://<ip>/properties/report`
-- Werte setzen: `POST http://<ip>/properties/write`
+- Stellbefehle: wahlweise lokal per HTTP oder ueber Home-Assistant-MQTT
 - Ohne PV-Ueberschuss: `acMode=2`, `outputLimit=0`, `inputLimit=0`
 - Mit PV-Ueberschuss: `acMode=1`, `outputLimit=0`, `inputLimit=<Ueberschussanteil>`
-- `smartMode=1` wird bei Schreibbefehlen gesetzt, damit haeufige Regelbefehle nicht unnoetig dauerhaft gespeichert werden.
+- `smartMode=0` wird gesetzt, wenn beide Limits `0` sind.
+- `smartMode=1` wird gesetzt, sobald geladen wird.
 
 Die Shelly-Netzleistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.
+
+## Steuerwege
+
+### HTTP
+
+HTTP schreibt direkt an die lokale ZenSDK-API:
+
+```text
+POST http://<ip>/properties/write
+```
+
+Geraeteformat:
+
+```text
+192.168.1.41,WOB123456789
+192.168.1.42,WOB123456790
+192.168.1.43,WOB123456791
+```
+
+### MQTT
+
+MQTT nutzt den Home-Assistant-MQTT-Dienst `mqtt.publish` und die Zendure-HA Topic-Struktur:
+
+```text
+iot/<productKey>/<deviceId>/properties/write
+```
+
+Geraeteformat:
+
+```text
+192.168.1.41,WOB123456789,PRODUCTKEY1,DEVICEID1
+192.168.1.42,WOB123456790,PRODUCTKEY2,DEVICEID2
+192.168.1.43,WOB123456791,PRODUCTKEY3,DEVICEID3
+```
+
+Auch im MQTT-Modus wird die IP gebraucht, weil SmartFlow den aktuellen Status per lokaler ZenSDK-HTTP-API liest.
 
 ## Installation
 
@@ -24,14 +61,7 @@ Danach unter **Einstellungen > Geraete & Dienste > Integration hinzufuegen** nac
 
 1. Shelly EM3 Netzleistung als Sensor, z. B. `sensor.shelly_em3_total_power`.
 2. IP-Adresse und Seriennummer jedes Zendure SolarFlow 2400 Pro.
-
-Die drei Zendure-Geraete werden in der UI zeilenweise im Format `IP,SERIENNUMMER` eingetragen:
-
-```text
-192.168.1.41,WOB123456789
-192.168.1.42,WOB123456790
-192.168.1.43,WOB123456791
-```
+3. Fuer MQTT zusaetzlich `productKey` und `deviceId` je Geraet.
 
 ## Wichtige Parameter
 

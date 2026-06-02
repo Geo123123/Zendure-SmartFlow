@@ -4,17 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
+import json
 import logging
+import time
 from typing import Any
 
 from aiohttp import ClientError, ClientTimeout
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
+    CONF_CONTROL_PROTOCOL,
     CONF_DEADBAND,
     CONF_ENABLED,
     CONF_INTERVAL,
@@ -25,6 +29,8 @@ from .const import (
     CONF_SHELLY_POWER_ENTITY,
     CONF_TARGET_GRID_POWER,
     CONF_ZENDURE_DEVICES,
+    CONTROL_PROTOCOL_MQTT,
+    DEFAULT_CONTROL_PROTOCOL,
     DEFAULT_DEADBAND,
     DEFAULT_ENABLED,
     DEFAULT_INTERVAL,
@@ -47,6 +53,8 @@ class ZendureDevice:
 
     host: str
     sn: str
+    product_key: str | None = None
+    device_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -122,9 +130,22 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
     def devices(self) -> list[ZendureDevice]:
         """Return configured Zendure devices."""
         return [
-            ZendureDevice(host=item["host"], sn=item["sn"])
+            ZendureDevice(
+                host=item["host"],
+                sn=item["sn"],
+                product_key=item.get("product_key"),
+                device_id=item.get("device_id"),
+            )
             for item in self.config_entry.data[CONF_ZENDURE_DEVICES]
         ]
+
+    @property
+    def control_protocol(self) -> str:
+        """Return the configured control protocol."""
+        return self.config_entry.options.get(
+            CONF_CONTROL_PROTOCOL,
+            self.config_entry.data.get(CONF_CONTROL_PROTOCOL, DEFAULT_CONTROL_PROTOCOL),
+        )
 
     @property
     def enabled(self) -> bool:
@@ -221,8 +242,9 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
             requested_charge, available_reports, reports, max_charge_per_device
         )
         changed = await self._write_targets(targets, reports, min_change)
+        protocol = self.control_protocol.upper()
         self._last_action = (
-            f"set {changed} devices via ZenSDK"
+            f"set {changed} devices via {protocol}"
             if changed
             else "change below minimum"
         )
@@ -355,9 +377,13 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
     async def _write_device(
         self, device: ZendureDevice, ac_mode: int, output_limit: int, input_limit: int
     ) -> None:
-        """Write one Zendure device command via local ZenSDK HTTP API."""
-        url = f"http://{device.host}/properties/write"
+        """Write one Zendure device command."""
         self._message_id += 1
+        if self.control_protocol == CONTROL_PROTOCOL_MQTT:
+            await self._publish_device(device, ac_mode, output_limit, input_limit)
+            return
+
+        url = f"http://{device.host}/properties/write"
         payload = {
             "id": self._message_id,
             "sn": device.sn,
@@ -375,6 +401,42 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
                 response.raise_for_status()
         except (ClientError, TimeoutError) as err:
             raise UpdateFailed(f"Failed to write {device.host}: {err}") from err
+
+    async def _publish_device(
+        self, device: ZendureDevice, ac_mode: int, output_limit: int, input_limit: int
+    ) -> None:
+        """Publish one Zendure device command via Home Assistant MQTT."""
+        if not device.product_key or not device.device_id:
+            raise UpdateFailed(
+                f"MQTT control for {device.host} requires product_key and device_id"
+            )
+
+        topic = f"iot/{device.product_key}/{device.device_id}/properties/write"
+        payload = {
+            "messageId": self._message_id,
+            "deviceId": device.device_id,
+            "timestamp": int(time.time()),
+            "properties": {
+                "smartMode": 0 if output_limit == 0 and input_limit == 0 else 1,
+                "acMode": ac_mode,
+                "outputLimit": output_limit,
+                "inputLimit": input_limit,
+            },
+        }
+        try:
+            await self.hass.services.async_call(
+                "mqtt",
+                "publish",
+                {
+                    "topic": topic,
+                    "payload": json.dumps(payload),
+                    "qos": 0,
+                    "retain": False,
+                },
+                blocking=True,
+            )
+        except HomeAssistantError as err:
+            raise UpdateFailed(f"Failed to publish MQTT command for {device.host}") from err
 
     def _state_float(self, entity_id: str | None) -> float | None:
         """Return an entity state as float."""

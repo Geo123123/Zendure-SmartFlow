@@ -4,10 +4,11 @@
     "step": {
       "user": {
         "title": "Zendure SmartFlow",
-        "description": "Laedt drei Zendure SolarFlow 2400 Pro per lokaler ZenSDK-HTTP-API nur bei PV-Ueberschuss. Ohne Ueberschuss werden outputLimit und inputLimit auf 0 gesetzt. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
+        "description": "Laedt drei Zendure SolarFlow 2400 Pro nur bei PV-Ueberschuss. Status wird per lokaler ZenSDK-HTTP-API gelesen; Stellbefehle koennen per HTTP oder MQTT gesendet werden. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
         "data": {
+          "control_protocol": "Steuerweg",
           "shelly_power_entity": "Shelly EM3 Netzleistung",
-          "zendure_devices": "Zendure Geraete: IP,SERIENNUMMER",
+          "zendure_devices": "Zendure Geraete",
           "target_grid_power": "Ziel-Netzleistung",
           "deadband": "Totband",
           "interval": "Regelintervall",
@@ -18,12 +19,12 @@
           "enabled": "Regelung aktivieren"
         },
         "data_description": {
-          "zendure_devices": "Genau drei Zeilen im Format IP,SERIENNUMMER, z. B. 192.168.1.41,WOB123456789."
+          "zendure_devices": "HTTP: IP,SERIENNUMMER. MQTT: IP,SERIENNUMMER,PRODUCTKEY,DEVICEID. Genau drei Zeilen eintragen."
         }
       }
     },
     "error": {
-      "need_three_devices": "Bitte genau drei Zendure Geraete im Format IP,SERIENNUMMER eintragen."
+      "need_three_devices": "Bitte genau drei Zendure Geraete im passenden Format eintragen."
     },
     "abort": {
       "already_configured": "Zendure SmartFlow ist bereits eingerichtet."

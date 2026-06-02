@@ -1,7 +1,7 @@
 {
   "domain": "zendure_smartflow",
   "name": "Zendure SmartFlow",
-  "after_dependencies": ["number", "sensor"],
+  "after_dependencies": ["mqtt", "number", "sensor"],
   "codeowners": [],
   "config_flow": true,
   "documentation": "https://github.com/custom-components/zendure_smartflow",

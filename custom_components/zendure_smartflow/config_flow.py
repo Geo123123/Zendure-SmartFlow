@@ -11,6 +11,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_CONTROL_PROTOCOL,
     CONF_DEADBAND,
     CONF_ENABLED,
     CONF_INTERVAL,
@@ -21,6 +22,8 @@ from .const import (
     CONF_SHELLY_POWER_ENTITY,
     CONF_TARGET_GRID_POWER,
     CONF_ZENDURE_DEVICES,
+    CONTROL_PROTOCOL_HTTP,
+    CONTROL_PROTOCOL_MQTT,
     DEFAULT_DEADBAND,
     DEFAULT_ENABLED,
     DEFAULT_INTERVAL,
@@ -34,8 +37,8 @@ from .const import (
 )
 
 
-def _device_list(value: str | None) -> list[dict[str, str]]:
-    """Normalize device lines in the format host,sn."""
+def _device_list(value: str | None, protocol: str) -> list[dict[str, str]]:
+    """Normalize device lines for HTTP or MQTT control."""
     if not value:
         return []
 
@@ -44,16 +47,41 @@ def _device_list(value: str | None) -> list[dict[str, str]]:
         cleaned = line.strip()
         if not cleaned:
             continue
-        parts = [item.strip() for item in cleaned.split(",", 1)]
-        if len(parts) != 2 or not parts[0] or not parts[1]:
+        parts = [item.strip() for item in cleaned.split(",")]
+        if protocol == CONTROL_PROTOCOL_MQTT:
+            if len(parts) != 4 or not all(parts):
+                return []
+            devices.append(
+                {
+                    "host": parts[0],
+                    "sn": parts[1],
+                    "product_key": parts[2],
+                    "device_id": parts[3],
+                }
+            )
+            continue
+
+        if len(parts) not in {2, 4} or not parts[0] or not parts[1]:
             return []
-        devices.append({"host": parts[0], "sn": parts[1]})
+        device = {"host": parts[0], "sn": parts[1]}
+        if len(parts) == 4 and parts[2] and parts[3]:
+            device["product_key"] = parts[2]
+            device["device_id"] = parts[3]
+        devices.append(device)
     return devices
 
 
 def _device_text(devices: list[dict[str, str]] | None) -> str:
     """Format configured devices for display in the options flow."""
-    return "\n".join(f"{item['host']},{item['sn']}" for item in devices or [])
+    lines: list[str] = []
+    for item in devices or []:
+        if item.get("product_key") and item.get("device_id"):
+            lines.append(
+                f"{item['host']},{item['sn']},{item['product_key']},{item['device_id']}"
+            )
+        else:
+            lines.append(f"{item['host']},{item['sn']}")
+    return "\n".join(lines)
 
 
 class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -68,7 +96,8 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            devices = _device_list(user_input[CONF_ZENDURE_DEVICES])
+            protocol = user_input[CONF_CONTROL_PROTOCOL]
+            devices = _device_list(user_input[CONF_ZENDURE_DEVICES], protocol)
 
             if len(devices) != 3:
                 errors[CONF_ZENDURE_DEVICES] = "need_three_devices"
@@ -88,6 +117,17 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
+                    vol.Required(
+                        CONF_CONTROL_PROTOCOL, default=DEFAULT_CONTROL_PROTOCOL
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                {"value": CONTROL_PROTOCOL_HTTP, "label": "HTTP"},
+                                {"value": CONTROL_PROTOCOL_MQTT, "label": "MQTT"},
+                            ],
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
                     vol.Required(CONF_SHELLY_POWER_ENTITY): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="sensor")
                     ),
@@ -199,7 +239,8 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
         """Manage options."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            devices = _device_list(user_input.pop(CONF_ZENDURE_DEVICES, ""))
+            protocol = user_input[CONF_CONTROL_PROTOCOL]
+            devices = _device_list(user_input.pop(CONF_ZENDURE_DEVICES, ""), protocol)
             if len(devices) != 3:
                 errors[CONF_ZENDURE_DEVICES] = "need_three_devices"
             else:
@@ -214,6 +255,20 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Required(
+                        CONF_CONTROL_PROTOCOL,
+                        default=options.get(
+                            CONF_CONTROL_PROTOCOL, DEFAULT_CONTROL_PROTOCOL
+                        ),
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                {"value": CONTROL_PROTOCOL_HTTP, "label": "HTTP"},
+                                {"value": CONTROL_PROTOCOL_MQTT, "label": "MQTT"},
+                            ],
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    ),
                     vol.Required(
                         CONF_ZENDURE_DEVICES,
                         default=_device_text(self.config_entry.data[CONF_ZENDURE_DEVICES]),
@@ -262,3 +317,4 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
             ),
             errors=errors,
         )
+    DEFAULT_CONTROL_PROTOCOL,

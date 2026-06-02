@@ -9,6 +9,7 @@ PLATFORMS = ["sensor", "switch", "number"]
 
 CONF_SHELLY_POWER_ENTITY = "shelly_power_entity"
 CONF_ZENDURE_DEVICES = "zendure_devices"
+CONF_CONTROL_PROTOCOL = "control_protocol"
 CONF_TARGET_GRID_POWER = "target_grid_power"
 CONF_DEADBAND = "deadband"
 CONF_INTERVAL = "interval"
@@ -26,6 +27,9 @@ DEFAULT_MIN_CHANGE = 25.0
 DEFAULT_RESPONSE_FACTOR = 0.55
 DEFAULT_RESERVE_SOC = 15.0
 DEFAULT_ENABLED = True
+DEFAULT_CONTROL_PROTOCOL = "http"
+CONTROL_PROTOCOL_HTTP = "http"
+CONTROL_PROTOCOL_MQTT = "mqtt"
 
 SERVICE_FORCE_UPDATE = "force_update"
 SERVICE_SET_ENABLED = "set_enabled"
