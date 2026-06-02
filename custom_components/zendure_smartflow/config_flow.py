@@ -24,6 +24,7 @@ from .const import (
     CONF_ZENDURE_DEVICES,
     CONTROL_PROTOCOL_HTTP,
     CONTROL_PROTOCOL_MQTT,
+    DEFAULT_CONTROL_PROTOCOL,
     DEFAULT_DEADBAND,
     DEFAULT_ENABLED,
     DEFAULT_INTERVAL,
@@ -317,4 +318,3 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
             ),
             errors=errors,
         )
-    DEFAULT_CONTROL_PROTOCOL,

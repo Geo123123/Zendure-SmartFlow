@@ -4,11 +4,11 @@
     "step": {
       "user": {
         "title": "Zendure SmartFlow",
-        "description": "Laedt drei Zendure SolarFlow 2400 Pro nur bei PV-Ueberschuss. Status wird per lokaler ZenSDK-HTTP-API gelesen; Stellbefehle koennen per HTTP oder MQTT gesendet werden. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
+        "description": "Laedt drei Zendure SolarFlow 2400 Pro nur bei PV-Ueberschuss. Waehle HTTP oder MQTT als Steuerweg. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
         "data": {
           "control_protocol": "Steuerweg",
           "shelly_power_entity": "Shelly EM3 Netzleistung",
-          "zendure_devices": "Zendure Geraete",
+          "zendure_devices": "Zendure Geraete je Zeile",
           "target_grid_power": "Ziel-Netzleistung",
           "deadband": "Totband",
           "interval": "Regelintervall",
@@ -19,7 +19,7 @@
           "enabled": "Regelung aktivieren"
         },
         "data_description": {
-          "zendure_devices": "HTTP: IP,SERIENNUMMER. MQTT: IP,SERIENNUMMER,PRODUCTKEY,DEVICEID. Genau drei Zeilen eintragen."
+          "zendure_devices": "HTTP: 192.168.1.41,WOB123456789. MQTT: 192.168.1.41,WOB123456789,PRODUCTKEY,DEVICEID. Genau drei Zeilen eintragen."
         }
       }
     },
@@ -36,7 +36,7 @@
         "title": "Zendure SmartFlow Optionen",
         "data": {
           "control_protocol": "Steuerweg",
-          "zendure_devices": "Zendure Geraete",
+          "zendure_devices": "Zendure Geraete je Zeile",
           "target_grid_power": "Ziel-Netzleistung",
           "deadband": "Totband",
           "interval": "Regelintervall",
