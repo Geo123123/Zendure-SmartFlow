@@ -14,18 +14,19 @@ from .const import (
     CONF_DEADBAND,
     CONF_ENABLED,
     CONF_INTERVAL,
-    CONF_MAX_OUTPUT_PER_DEVICE,
+    CONF_MAX_CHARGE_PER_DEVICE,
     CONF_MIN_CHANGE,
     CONF_RESERVE_SOC,
     CONF_RESPONSE_FACTOR,
     CONF_SHELLY_POWER_ENTITY,
     CONF_TARGET_GRID_POWER,
+    CONF_ZENDURE_CHARGE_ENTITIES,
     CONF_ZENDURE_OUTPUT_ENTITIES,
     CONF_ZENDURE_SOC_ENTITIES,
     DEFAULT_DEADBAND,
     DEFAULT_ENABLED,
     DEFAULT_INTERVAL,
-    DEFAULT_MAX_OUTPUT_PER_DEVICE,
+    DEFAULT_MAX_CHARGE_PER_DEVICE,
     DEFAULT_MIN_CHANGE,
     DEFAULT_RESERVE_SOC,
     DEFAULT_RESPONSE_FACTOR,
@@ -62,10 +63,13 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             output_entities = _entity_list(user_input[CONF_ZENDURE_OUTPUT_ENTITIES])
+            charge_entities = _entity_list(user_input[CONF_ZENDURE_CHARGE_ENTITIES])
             soc_entities = _entity_list(user_input.get(CONF_ZENDURE_SOC_ENTITIES))
 
             if len(output_entities) != 3:
                 errors[CONF_ZENDURE_OUTPUT_ENTITIES] = "need_three_outputs"
+            elif len(charge_entities) != 3:
+                errors[CONF_ZENDURE_CHARGE_ENTITIES] = "need_three_charges"
             elif soc_entities and len(soc_entities) != 3:
                 errors[CONF_ZENDURE_SOC_ENTITIES] = "need_three_soc"
             else:
@@ -77,6 +81,7 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data={
                         **user_input,
                         CONF_ZENDURE_OUTPUT_ENTITIES: output_entities,
+                        CONF_ZENDURE_CHARGE_ENTITIES: charge_entities,
                         CONF_ZENDURE_SOC_ENTITIES: soc_entities,
                     },
                 )
@@ -89,6 +94,9 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         selector.EntitySelectorConfig(domain="sensor")
                     ),
                     vol.Required(CONF_ZENDURE_OUTPUT_ENTITIES): selector.TextSelector(
+                        selector.TextSelectorConfig(multiline=True)
+                    ),
+                    vol.Required(CONF_ZENDURE_CHARGE_ENTITIES): selector.TextSelector(
                         selector.TextSelectorConfig(multiline=True)
                     ),
                     vol.Optional(CONF_ZENDURE_SOC_ENTITIES): selector.TextSelector(
@@ -128,8 +136,8 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         )
                     ),
                     vol.Optional(
-                        CONF_MAX_OUTPUT_PER_DEVICE,
-                        default=DEFAULT_MAX_OUTPUT_PER_DEVICE,
+                        CONF_MAX_CHARGE_PER_DEVICE,
+                        default=DEFAULT_MAX_CHARGE_PER_DEVICE,
                     ): selector.NumberSelector(
                         selector.NumberSelectorConfig(
                             min=0,
@@ -220,9 +228,9 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
                         default=options.get(CONF_INTERVAL, DEFAULT_INTERVAL),
                     ): int,
                     vol.Optional(
-                        CONF_MAX_OUTPUT_PER_DEVICE,
+                        CONF_MAX_CHARGE_PER_DEVICE,
                         default=options.get(
-                            CONF_MAX_OUTPUT_PER_DEVICE, DEFAULT_MAX_OUTPUT_PER_DEVICE
+                            CONF_MAX_CHARGE_PER_DEVICE, DEFAULT_MAX_CHARGE_PER_DEVICE
                         ),
                     ): float,
                     vol.Optional(

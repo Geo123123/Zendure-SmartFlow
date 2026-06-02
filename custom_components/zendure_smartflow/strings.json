@@ -4,15 +4,16 @@
     "step": {
       "user": {
         "title": "Zendure SmartFlow",
-        "description": "Regelt drei Zendure SolarFlow 2400 Pro ueber einen Shelly EM3. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
+        "description": "Laedt drei Zendure SolarFlow 2400 Pro nur bei PV-Ueberschuss. Ohne Ueberschuss wird der WR-Ausgang auf Bypass/0 gehalten. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
         "data": {
           "shelly_power_entity": "Shelly EM3 Netzleistung",
-          "zendure_output_entities": "Zendure Ausgangsleistung-Number-Entities",
+          "zendure_output_entities": "Zendure WR-Ausgang/Bypass-Number-Entities",
+          "zendure_charge_entities": "Zendure Ladeleistung-Number-Entities",
           "zendure_soc_entities": "Zendure SOC-Sensoren",
           "target_grid_power": "Ziel-Netzleistung",
           "deadband": "Totband",
           "interval": "Regelintervall",
-          "max_output_per_device": "Maximale Ausgangsleistung je Zendure",
+          "max_charge_per_device": "Maximale Ladeleistung je Zendure",
           "min_change": "Mindest-Aenderung",
           "response_factor": "Reaktionsfaktor",
           "reserve_soc": "SOC-Reserve",
@@ -21,7 +22,8 @@
       }
     },
     "error": {
-      "need_three_outputs": "Bitte genau drei Zendure Ausgangsleistung-Entities eintragen.",
+      "need_three_outputs": "Bitte genau drei Zendure WR-Ausgang/Bypass-Entities eintragen.",
+      "need_three_charges": "Bitte genau drei Zendure Ladeleistung-Entities eintragen.",
       "need_three_soc": "Bitte genau drei SOC-Sensoren eintragen oder das Feld leer lassen."
     },
     "abort": {
@@ -36,7 +38,7 @@
           "target_grid_power": "Ziel-Netzleistung",
           "deadband": "Totband",
           "interval": "Regelintervall",
-          "max_output_per_device": "Maximale Ausgangsleistung je Zendure",
+          "max_charge_per_device": "Maximale Ladeleistung je Zendure",
           "min_change": "Mindest-Aenderung",
           "response_factor": "Reaktionsfaktor",
           "reserve_soc": "SOC-Reserve",
@@ -50,8 +52,8 @@
       "grid_power": { "name": "Netzleistung" },
       "target_grid_power": { "name": "Ziel-Netzleistung" },
       "error": { "name": "Regelabweichung" },
-      "requested_output": { "name": "Angeforderte Leistung" },
-      "applied_output": { "name": "Gesetzte Leistung" },
+      "requested_charge": { "name": "Angeforderte Ladeleistung" },
+      "applied_charge": { "name": "Gesetzte Ladeleistung" },
       "available_devices": { "name": "Verfuegbare Geraete" },
       "mode": { "name": "Modus" },
       "last_action": { "name": "Letzte Aktion" }
@@ -62,7 +64,7 @@
     "number": {
       "target_grid_power": { "name": "Ziel-Netzleistung" },
       "deadband": { "name": "Totband" },
-      "max_output_per_device": { "name": "Maximale Leistung je Geraet" },
+      "max_charge_per_device": { "name": "Maximale Ladeleistung je Geraet" },
       "min_change": { "name": "Mindest-Aenderung" },
       "response_factor": { "name": "Reaktionsfaktor" },
       "reserve_soc": { "name": "SOC-Reserve" },
