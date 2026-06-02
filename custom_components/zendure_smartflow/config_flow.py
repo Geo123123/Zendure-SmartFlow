@@ -20,9 +20,7 @@ from .const import (
     CONF_RESPONSE_FACTOR,
     CONF_SHELLY_POWER_ENTITY,
     CONF_TARGET_GRID_POWER,
-    CONF_ZENDURE_CHARGE_ENTITIES,
-    CONF_ZENDURE_OUTPUT_ENTITIES,
-    CONF_ZENDURE_SOC_ENTITIES,
+    CONF_ZENDURE_DEVICES,
     DEFAULT_DEADBAND,
     DEFAULT_ENABLED,
     DEFAULT_INTERVAL,
@@ -36,18 +34,26 @@ from .const import (
 )
 
 
-def _entity_list(value: str | list[str] | None) -> list[str]:
-    """Normalize a comma or newline separated entity list."""
-    if value is None:
+def _device_list(value: str | None) -> list[dict[str, str]]:
+    """Normalize device lines in the format host,sn."""
+    if not value:
         return []
-    if isinstance(value, list):
-        return [item.strip() for item in value if item.strip()]
-    return [
-        item.strip()
-        for chunk in value.splitlines()
-        for item in chunk.split(",")
-        if item.strip()
-    ]
+
+    devices: list[dict[str, str]] = []
+    for line in value.splitlines():
+        cleaned = line.strip()
+        if not cleaned:
+            continue
+        parts = [item.strip() for item in cleaned.split(",", 1)]
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            return []
+        devices.append({"host": parts[0], "sn": parts[1]})
+    return devices
+
+
+def _device_text(devices: list[dict[str, str]] | None) -> str:
+    """Format configured devices for display in the options flow."""
+    return "\n".join(f"{item['host']},{item['sn']}" for item in devices or [])
 
 
 class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -62,16 +68,10 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            output_entities = _entity_list(user_input[CONF_ZENDURE_OUTPUT_ENTITIES])
-            charge_entities = _entity_list(user_input[CONF_ZENDURE_CHARGE_ENTITIES])
-            soc_entities = _entity_list(user_input.get(CONF_ZENDURE_SOC_ENTITIES))
+            devices = _device_list(user_input[CONF_ZENDURE_DEVICES])
 
-            if len(output_entities) != 3:
-                errors[CONF_ZENDURE_OUTPUT_ENTITIES] = "need_three_outputs"
-            elif len(charge_entities) != 3:
-                errors[CONF_ZENDURE_CHARGE_ENTITIES] = "need_three_charges"
-            elif soc_entities and len(soc_entities) != 3:
-                errors[CONF_ZENDURE_SOC_ENTITIES] = "need_three_soc"
+            if len(devices) != 3:
+                errors[CONF_ZENDURE_DEVICES] = "need_three_devices"
             else:
                 await self.async_set_unique_id("zendure_smartflow")
                 self._abort_if_unique_id_configured()
@@ -80,9 +80,7 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=NAME,
                     data={
                         **user_input,
-                        CONF_ZENDURE_OUTPUT_ENTITIES: output_entities,
-                        CONF_ZENDURE_CHARGE_ENTITIES: charge_entities,
-                        CONF_ZENDURE_SOC_ENTITIES: soc_entities,
+                        CONF_ZENDURE_DEVICES: devices,
                     },
                 )
 
@@ -93,13 +91,7 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_SHELLY_POWER_ENTITY): selector.EntitySelector(
                         selector.EntitySelectorConfig(domain="sensor")
                     ),
-                    vol.Required(CONF_ZENDURE_OUTPUT_ENTITIES): selector.TextSelector(
-                        selector.TextSelectorConfig(multiline=True)
-                    ),
-                    vol.Required(CONF_ZENDURE_CHARGE_ENTITIES): selector.TextSelector(
-                        selector.TextSelectorConfig(multiline=True)
-                    ),
-                    vol.Optional(CONF_ZENDURE_SOC_ENTITIES): selector.TextSelector(
+                    vol.Required(CONF_ZENDURE_DEVICES): selector.TextSelector(
                         selector.TextSelectorConfig(multiline=True)
                     ),
                     vol.Optional(
@@ -205,14 +197,29 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Manage options."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            devices = _device_list(user_input.pop(CONF_ZENDURE_DEVICES, ""))
+            if len(devices) != 3:
+                errors[CONF_ZENDURE_DEVICES] = "need_three_devices"
+            else:
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    data={**self.config_entry.data, CONF_ZENDURE_DEVICES: devices},
+                )
+                return self.async_create_entry(title="", data=user_input)
 
         options = {**self.config_entry.data, **self.config_entry.options}
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
+                    vol.Required(
+                        CONF_ZENDURE_DEVICES,
+                        default=_device_text(self.config_entry.data[CONF_ZENDURE_DEVICES]),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(multiline=True)
+                    ),
                     vol.Optional(
                         CONF_TARGET_GRID_POWER,
                         default=options.get(
@@ -253,4 +260,5 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
                     ): bool,
                 }
             ),
+            errors=errors,
         )

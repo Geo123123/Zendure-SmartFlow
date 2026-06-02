@@ -7,8 +7,11 @@ from datetime import timedelta
 import logging
 from typing import Any
 
+from aiohttp import ClientError, ClientTimeout
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -21,9 +24,7 @@ from .const import (
     CONF_RESPONSE_FACTOR,
     CONF_SHELLY_POWER_ENTITY,
     CONF_TARGET_GRID_POWER,
-    CONF_ZENDURE_CHARGE_ENTITIES,
-    CONF_ZENDURE_OUTPUT_ENTITIES,
-    CONF_ZENDURE_SOC_ENTITIES,
+    CONF_ZENDURE_DEVICES,
     DEFAULT_DEADBAND,
     DEFAULT_ENABLED,
     DEFAULT_INTERVAL,
@@ -36,6 +37,26 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class ZendureDevice:
+    """Configured Zendure device."""
+
+    host: str
+    sn: str
+
+
+@dataclass(slots=True)
+class DeviceReport:
+    """Relevant properties from a Zendure device report."""
+
+    device: ZendureDevice
+    soc: float | None
+    ac_mode: int | None
+    grid_input_power: float
+    output_home_power: float
+    solar_input_power: float
 
 
 @dataclass(slots=True)
@@ -60,8 +81,15 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
+def _as_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
-    """Coordinator implementing surplus charging with inverter bypass."""
+    """Coordinator implementing ZenSDK surplus charging with inverter bypass."""
 
     config_entry: ConfigEntry
 
@@ -70,6 +98,8 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
         self.config_entry = entry
         self._enabled = self._option(CONF_ENABLED, DEFAULT_ENABLED)
         self._last_action = "idle"
+        self._last_targets: dict[str, tuple[int, int, int]] = {}
+        self._session = async_get_clientsession(hass)
 
         super().__init__(
             hass,
@@ -86,19 +116,12 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
         return self.config_entry.data[CONF_SHELLY_POWER_ENTITY]
 
     @property
-    def output_entities(self) -> list[str]:
-        """Return Zendure output entities used to keep the inverter in bypass."""
-        return list(self.config_entry.data[CONF_ZENDURE_OUTPUT_ENTITIES])
-
-    @property
-    def charge_entities(self) -> list[str]:
-        """Return Zendure battery charge number entities."""
-        return list(self.config_entry.data[CONF_ZENDURE_CHARGE_ENTITIES])
-
-    @property
-    def soc_entities(self) -> list[str]:
-        """Return optional Zendure SOC sensor entities."""
-        return list(self.config_entry.data.get(CONF_ZENDURE_SOC_ENTITIES, []))
+    def devices(self) -> list[ZendureDevice]:
+        """Return configured Zendure devices."""
+        return [
+            ZendureDevice(host=item["host"], sn=item["sn"])
+            for item in self.config_entry.data[CONF_ZENDURE_DEVICES]
+        ]
 
     @property
     def enabled(self) -> bool:
@@ -143,11 +166,10 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
         )
         reserve_soc = float(self._option(CONF_RESERVE_SOC, DEFAULT_RESERVE_SOC))
 
-        current_charge_total = sum(
-            self._state_float(entity_id) or 0.0 for entity_id in self.charge_entities
-        )
-        available_charge_entities = self._available_charge_entities(reserve_soc)
-        available_count = len(available_charge_entities)
+        reports = await self._read_reports()
+        current_charge_total = sum(report.grid_input_power for report in reports)
+        available_reports = self._available_reports(reports, reserve_soc)
+        available_count = len(available_reports)
         error = target_grid - grid_power
 
         if not self._enabled:
@@ -165,8 +187,10 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
             )
 
         if available_count == 0:
-            await self._set_numbers(self._zero_targets())
-            self._last_action = "all devices full or unavailable"
+            changed = await self._command_all_off(reports, min_change)
+            self._last_action = (
+                f"set {changed} devices off" if changed else "all devices full/off"
+            )
             return SmartFlowData(
                 enabled=True,
                 grid_power=grid_power,
@@ -190,27 +214,17 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
             )
             mode = "charging"
 
-        targets = self._zero_output_targets()
-        targets.update(
-            self._distribute(
-                requested_charge, available_charge_entities, max_charge_per_device
-            )
+        targets = self._build_targets(
+            requested_charge, available_reports, reports, max_charge_per_device
         )
-        for entity_id in self.charge_entities:
-            targets.setdefault(entity_id, 0.0)
+        changed = await self._write_targets(targets, reports, min_change)
+        self._last_action = (
+            f"set {changed} devices via ZenSDK"
+            if changed
+            else "change below minimum"
+        )
 
-        changed_targets = {
-            entity_id: value
-            for entity_id, value in targets.items()
-            if abs(value - (self._state_float(entity_id) or 0.0)) >= min_change
-        }
-        if changed_targets:
-            await self._set_numbers(changed_targets)
-            self._last_action = f"set {len(changed_targets)} number entities"
-        else:
-            self._last_action = "change below minimum"
-
-        applied_charge = sum(targets[entity_id] for entity_id in self.charge_entities)
+        applied_charge = sum(target[2] for target in targets.values())
         return SmartFlowData(
             enabled=True,
             grid_power=grid_power,
@@ -223,50 +237,127 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
             last_action=self._last_action,
         )
 
-    def _available_charge_entities(self, reserve_soc: float) -> list[str]:
-        """Return charge entities whose matching battery is not effectively full."""
-        if not self.soc_entities:
-            return self.charge_entities
+    async def _read_reports(self) -> list[DeviceReport]:
+        """Read relevant properties from all Zendure devices."""
+        reports: list[DeviceReport] = []
+        for device in self.devices:
+            url = f"http://{device.host}/properties/report"
+            try:
+                async with self._session.get(
+                    url, timeout=ClientTimeout(total=5)
+                ) as response:
+                    response.raise_for_status()
+                    payload = await response.json()
+            except (ClientError, TimeoutError, ValueError) as err:
+                raise UpdateFailed(f"Failed to read {device.host}: {err}") from err
 
-        available: list[str] = []
-        full_threshold = 100.0 - reserve_soc
-        for index, charge_entity in enumerate(self.charge_entities):
-            soc_entity = self.soc_entities[index] if index < len(self.soc_entities) else None
-            soc = self._state_float(soc_entity) if soc_entity else None
-            if soc is None or soc < full_threshold:
-                available.append(charge_entity)
-        return available
+            if payload.get("sn") not in {None, device.sn}:
+                raise UpdateFailed(
+                    f"Serial mismatch for {device.host}: got {payload.get('sn')}"
+                )
 
-    def _distribute(
-        self, requested_total: float, available: list[str], max_per_device: float
-    ) -> dict[str, float]:
-        """Distribute requested watts evenly across available Zendure devices."""
-        if not available:
-            return {}
-
-        per_device = max(0.0, min(requested_total / len(available), max_per_device))
-        return {entity_id: round(per_device) for entity_id in available}
-
-    def _zero_output_targets(self) -> dict[str, float]:
-        """Return targets that keep the inverter output at bypass/zero."""
-        return {entity_id: 0.0 for entity_id in self.output_entities}
-
-    def _zero_targets(self) -> dict[str, float]:
-        """Return zero targets for inverter output and battery charge."""
-        return {
-            **self._zero_output_targets(),
-            **{entity_id: 0.0 for entity_id in self.charge_entities},
-        }
-
-    async def _set_numbers(self, targets: dict[str, float]) -> None:
-        """Set Zendure number entities."""
-        for entity_id, value in targets.items():
-            await self.hass.services.async_call(
-                "number",
-                "set_value",
-                {"entity_id": entity_id, "value": round(value)},
-                blocking=False,
+            properties = payload.get("properties", {})
+            reports.append(
+                DeviceReport(
+                    device=device,
+                    soc=_as_float(properties.get("electricLevel")),
+                    ac_mode=_as_int(properties.get("acMode")),
+                    grid_input_power=_as_float(properties.get("gridInputPower")) or 0.0,
+                    output_home_power=_as_float(properties.get("outputHomePower"))
+                    or 0.0,
+                    solar_input_power=_as_float(properties.get("solarInputPower"))
+                    or 0.0,
+                )
             )
+        return reports
+
+    def _available_reports(
+        self, reports: list[DeviceReport], reserve_soc: float
+    ) -> list[DeviceReport]:
+        """Return devices that can still accept charge."""
+        full_threshold = 100.0 - reserve_soc
+        return [
+            report
+            for report in reports
+            if report.soc is None or report.soc < full_threshold
+        ]
+
+    def _build_targets(
+        self,
+        requested_charge: float,
+        available_reports: list[DeviceReport],
+        reports: list[DeviceReport],
+        max_charge_per_device: float,
+    ) -> dict[str, tuple[int, int, int]]:
+        """Build acMode/outputLimit/inputLimit targets for every device."""
+        targets = {report.device.sn: (2, 0, 0) for report in reports}
+        if requested_charge <= 0 or not available_reports:
+            return targets
+
+        per_device = round(
+            max(0.0, min(requested_charge / len(available_reports), max_charge_per_device))
+        )
+        for report in available_reports:
+            targets[report.device.sn] = (1, 0, per_device)
+        return targets
+
+    async def _command_all_off(
+        self, reports: list[DeviceReport], min_change: float
+    ) -> int:
+        """Set all devices to no charge and no discharge."""
+        return await self._write_targets(
+            {report.device.sn: (2, 0, 0) for report in reports}, reports, min_change
+        )
+
+    async def _write_targets(
+        self,
+        targets: dict[str, tuple[int, int, int]],
+        reports: list[DeviceReport],
+        min_change: float,
+    ) -> int:
+        """Write changed targets via ZenSDK /properties/write."""
+        report_by_sn = {report.device.sn: report for report in reports}
+        changed = 0
+        for sn, target in targets.items():
+            report = report_by_sn[sn]
+            ac_mode, output_limit, input_limit = target
+            previous = self._last_targets.get(sn)
+            current_input = report.grid_input_power if report.ac_mode == 1 else 0.0
+            current_output = report.output_home_power if report.ac_mode == 2 else 0.0
+
+            if (
+                previous == target
+                and abs(input_limit - current_input) < min_change
+                and abs(output_limit - current_output) < min_change
+            ):
+                continue
+
+            await self._write_device(report.device, ac_mode, output_limit, input_limit)
+            self._last_targets[sn] = target
+            changed += 1
+        return changed
+
+    async def _write_device(
+        self, device: ZendureDevice, ac_mode: int, output_limit: int, input_limit: int
+    ) -> None:
+        """Write one Zendure device command via local ZenSDK HTTP API."""
+        url = f"http://{device.host}/properties/write"
+        payload = {
+            "sn": device.sn,
+            "properties": {
+                "smartMode": 1,
+                "acMode": ac_mode,
+                "outputLimit": output_limit,
+                "inputLimit": input_limit,
+            },
+        }
+        try:
+            async with self._session.post(
+                url, json=payload, timeout=ClientTimeout(total=5)
+            ) as response:
+                response.raise_for_status()
+        except (ClientError, TimeoutError) as err:
+            raise UpdateFailed(f"Failed to write {device.host}: {err}") from err
 
     def _state_float(self, entity_id: str | None) -> float | None:
         """Return an entity state as float."""

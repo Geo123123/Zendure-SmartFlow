@@ -4,12 +4,10 @@
     "step": {
       "user": {
         "title": "Zendure SmartFlow",
-        "description": "Laedt drei Zendure SolarFlow 2400 Pro nur bei PV-Ueberschuss. Ohne Ueberschuss wird der WR-Ausgang auf Bypass/0 gehalten. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
+        "description": "Laedt drei Zendure SolarFlow 2400 Pro per lokaler ZenSDK-HTTP-API nur bei PV-Ueberschuss. Ohne Ueberschuss werden outputLimit und inputLimit auf 0 gesetzt. Die Shelly-Leistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.",
         "data": {
           "shelly_power_entity": "Shelly EM3 Netzleistung",
-          "zendure_output_entities": "Zendure WR-Ausgang/Bypass-Number-Entities",
-          "zendure_charge_entities": "Zendure Ladeleistung-Number-Entities",
-          "zendure_soc_entities": "Zendure SOC-Sensoren",
+          "zendure_devices": "Zendure Geraete: IP,SERIENNUMMER",
           "target_grid_power": "Ziel-Netzleistung",
           "deadband": "Totband",
           "interval": "Regelintervall",
@@ -18,13 +16,14 @@
           "response_factor": "Reaktionsfaktor",
           "reserve_soc": "SOC-Reserve",
           "enabled": "Regelung aktivieren"
+        },
+        "data_description": {
+          "zendure_devices": "Genau drei Zeilen im Format IP,SERIENNUMMER, z. B. 192.168.1.41,WOB123456789."
         }
       }
     },
     "error": {
-      "need_three_outputs": "Bitte genau drei Zendure WR-Ausgang/Bypass-Entities eintragen.",
-      "need_three_charges": "Bitte genau drei Zendure Ladeleistung-Entities eintragen.",
-      "need_three_soc": "Bitte genau drei SOC-Sensoren eintragen oder das Feld leer lassen."
+      "need_three_devices": "Bitte genau drei Zendure Geraete im Format IP,SERIENNUMMER eintragen."
     },
     "abort": {
       "already_configured": "Zendure SmartFlow ist bereits eingerichtet."

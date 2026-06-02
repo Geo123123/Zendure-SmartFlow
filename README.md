@@ -4,18 +4,15 @@ Home-Assistant-Custom-Integration fuer eine PV-Ueberschussladung mit drei Zendur
 
 ## Regelprinzip
 
-Zendure SmartFlow liest die Shelly-Netzleistung und steuert pro Zendure zwei `number`-Entities:
+Zendure SmartFlow liest die Shelly-Netzleistung aus Home Assistant und steuert die drei Zendure-Geraete direkt ueber die lokale ZenSDK-HTTP-API.
 
-- WR-Ausgang/Bypass: wird im Automatikbetrieb immer auf `0 W` gesetzt.
-- Ladeleistung: wird nur bei PV-Ueberschuss gesetzt.
+- Status lesen: `GET http://<ip>/properties/report`
+- Werte setzen: `POST http://<ip>/properties/write`
+- Ohne PV-Ueberschuss: `acMode=2`, `outputLimit=0`, `inputLimit=0`
+- Mit PV-Ueberschuss: `acMode=1`, `outputLimit=0`, `inputLimit=<Ueberschussanteil>`
+- `smartMode=1` wird bei Schreibbefehlen gesetzt, damit haeufige Regelbefehle nicht unnoetig dauerhaft gespeichert werden.
 
-Damit gilt:
-
-- Positive Shelly-Leistung bedeutet Netzbezug.
-- Negative Shelly-Leistung bedeutet Einspeisung/PV-Ueberschuss.
-- Wenn kein Ueberschuss vorhanden ist, bleibt der Wechselrichter auf Bypass bzw. `0 W`.
-- Erst bei echter Einspeisung wird die Akku-Ladeleistung erhoeht.
-- Zielwert ist standardmaessig `30 W` Netzbezug, damit die Regelung nicht dauerhaft einspeist.
+Die Shelly-Netzleistung muss positiv bei Netzbezug und negativ bei Einspeisung sein.
 
 ## Installation
 
@@ -23,14 +20,18 @@ Kopiere den Ordner `custom_components/zendure_smartflow` in den Home-Assistant-K
 
 Danach unter **Einstellungen > Geraete & Dienste > Integration hinzufuegen** nach `Zendure SmartFlow` suchen.
 
-## Benoetigte Entities
+## Benoetigte Daten
 
 1. Shelly EM3 Netzleistung als Sensor, z. B. `sensor.shelly_em3_total_power`.
-2. Drei Zendure WR-Ausgang/Bypass-Entities als `number`, je eine pro SolarFlow 2400 Pro.
-3. Drei Zendure Ladeleistungs-Entities als `number`, je eine pro SolarFlow 2400 Pro.
-4. Optional drei Zendure SOC-Sensoren, je einer pro SolarFlow 2400 Pro.
+2. IP-Adresse und Seriennummer jedes Zendure SolarFlow 2400 Pro.
 
-Die drei Zendure-Entities werden in der UI zeilenweise oder kommasepariert eingetragen.
+Die drei Zendure-Geraete werden in der UI zeilenweise im Format `IP,SERIENNUMMER` eingetragen:
+
+```text
+192.168.1.41,WOB123456789
+192.168.1.42,WOB123456790
+192.168.1.43,WOB123456791
+```
 
 ## Wichtige Parameter
 

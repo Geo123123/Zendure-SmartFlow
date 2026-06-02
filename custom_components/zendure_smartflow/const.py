@@ -8,9 +8,7 @@ NAME = "Zendure SmartFlow"
 PLATFORMS = ["sensor", "switch", "number"]
 
 CONF_SHELLY_POWER_ENTITY = "shelly_power_entity"
-CONF_ZENDURE_OUTPUT_ENTITIES = "zendure_output_entities"
-CONF_ZENDURE_CHARGE_ENTITIES = "zendure_charge_entities"
-CONF_ZENDURE_SOC_ENTITIES = "zendure_soc_entities"
+CONF_ZENDURE_DEVICES = "zendure_devices"
 CONF_TARGET_GRID_POWER = "target_grid_power"
 CONF_DEADBAND = "deadband"
 CONF_INTERVAL = "interval"
