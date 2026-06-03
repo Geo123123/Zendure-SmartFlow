@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/custom-components/zendure_smartflow/issues",
   "requirements": ["paho-mqtt==2.1.0"],
   "single_config_entry": true,
-  "version": "0.3.1"
+  "version": "0.3.2"
 }
