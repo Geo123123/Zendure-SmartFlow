@@ -17,6 +17,11 @@ from .const import (
     CONF_INTERVAL,
     CONF_MAX_CHARGE_PER_DEVICE,
     CONF_MIN_CHANGE,
+    CONF_MQTT_HOST,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
+    CONF_MQTT_TLS,
+    CONF_MQTT_USERNAME,
     CONF_RESERVE_SOC,
     CONF_RESPONSE_FACTOR,
     CONF_SHELLY_POWER_ENTITY,
@@ -30,6 +35,8 @@ from .const import (
     DEFAULT_INTERVAL,
     DEFAULT_MAX_CHARGE_PER_DEVICE,
     DEFAULT_MIN_CHANGE,
+    DEFAULT_MQTT_PORT,
+    DEFAULT_MQTT_TLS,
     DEFAULT_RESERVE_SOC,
     DEFAULT_RESPONSE_FACTOR,
     DEFAULT_TARGET_GRID_POWER,
@@ -135,6 +142,22 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_ZENDURE_DEVICES): selector.TextSelector(
                         selector.TextSelectorConfig(multiline=True)
                     ),
+                    vol.Optional(CONF_MQTT_HOST): selector.TextSelector(),
+                    vol.Optional(
+                        CONF_MQTT_PORT, default=DEFAULT_MQTT_PORT
+                    ): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=1,
+                            max=65535,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                        )
+                    ),
+                    vol.Optional(CONF_MQTT_USERNAME): selector.TextSelector(),
+                    vol.Optional(CONF_MQTT_PASSWORD): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                    ),
+                    vol.Optional(CONF_MQTT_TLS, default=DEFAULT_MQTT_TLS): bool,
                     vol.Optional(
                         CONF_TARGET_GRID_POWER, default=DEFAULT_TARGET_GRID_POWER
                     ): selector.NumberSelector(
@@ -274,6 +297,28 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
                     ): selector.TextSelector(
                         selector.TextSelectorConfig(multiline=True)
                     ),
+                    vol.Optional(
+                        CONF_MQTT_HOST,
+                        default=options.get(CONF_MQTT_HOST, ""),
+                    ): selector.TextSelector(),
+                    vol.Optional(
+                        CONF_MQTT_PORT,
+                        default=options.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT),
+                    ): int,
+                    vol.Optional(
+                        CONF_MQTT_USERNAME,
+                        default=options.get(CONF_MQTT_USERNAME, ""),
+                    ): selector.TextSelector(),
+                    vol.Optional(
+                        CONF_MQTT_PASSWORD,
+                        default=options.get(CONF_MQTT_PASSWORD, ""),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                    ),
+                    vol.Optional(
+                        CONF_MQTT_TLS,
+                        default=options.get(CONF_MQTT_TLS, DEFAULT_MQTT_TLS),
+                    ): bool,
                     vol.Optional(
                         CONF_TARGET_GRID_POWER,
                         default=options.get(

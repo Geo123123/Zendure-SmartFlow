@@ -24,6 +24,11 @@ from .const import (
     CONF_INTERVAL,
     CONF_MAX_CHARGE_PER_DEVICE,
     CONF_MIN_CHANGE,
+    CONF_MQTT_HOST,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
+    CONF_MQTT_TLS,
+    CONF_MQTT_USERNAME,
     CONF_RESERVE_SOC,
     CONF_RESPONSE_FACTOR,
     CONF_SHELLY_POWER_ENTITY,
@@ -36,6 +41,8 @@ from .const import (
     DEFAULT_INTERVAL,
     DEFAULT_MAX_CHARGE_PER_DEVICE,
     DEFAULT_MIN_CHANGE,
+    DEFAULT_MQTT_PORT,
+    DEFAULT_MQTT_TLS,
     DEFAULT_RESERVE_SOC,
     DEFAULT_RESPONSE_FACTOR,
     DEFAULT_TARGET_GRID_POWER,
@@ -435,6 +442,21 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
             },
         }
         try:
+            mqtt_host = self._option(CONF_MQTT_HOST, "")
+            if mqtt_host:
+                await self.hass.async_add_executor_job(
+                    self._publish_device_direct,
+                    mqtt_host,
+                    int(self._option(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)),
+                    self._option(CONF_MQTT_USERNAME, ""),
+                    self._option(CONF_MQTT_PASSWORD, ""),
+                    bool(self._option(CONF_MQTT_TLS, DEFAULT_MQTT_TLS)),
+                    topic,
+                    json.dumps(payload),
+                    device.device_id,
+                )
+                return
+
             await self.hass.services.async_call(
                 "mqtt",
                 "publish",
@@ -446,8 +468,38 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
                 },
                 blocking=True,
             )
-        except HomeAssistantError as err:
+        except (HomeAssistantError, OSError, RuntimeError, ValueError) as err:
             raise UpdateFailed(f"Failed to publish MQTT command for {device.host}") from err
+
+    @staticmethod
+    def _publish_device_direct(
+        host: str,
+        port: int,
+        username: str | None,
+        password: str | None,
+        tls_enabled: bool,
+        topic: str,
+        payload: str,
+        device_id: str,
+    ) -> None:
+        """Publish an MQTT command directly to the configured broker."""
+        from paho.mqtt import publish
+
+        auth = None
+        if username:
+            auth = {"username": username, "password": password or None}
+
+        publish.single(
+            topic,
+            payload=payload,
+            qos=0,
+            retain=False,
+            hostname=host,
+            port=port,
+            client_id=f"zendure_smartflow_{device_id}",
+            auth=auth,
+            tls={} if tls_enabled else None,
+        )
 
     def _state_float(self, entity_id: str | None) -> float | None:
         """Return an entity state as float."""
