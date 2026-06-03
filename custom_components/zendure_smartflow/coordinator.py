@@ -267,12 +267,19 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
         reports: list[DeviceReport] = []
         for device in self.devices:
             url = f"http://{device.host}/properties/report"
+            text = ""
             try:
                 async with self._session.get(
                     url, headers=_HEADERS, timeout=_TIMEOUT
                 ) as response:
                     response.raise_for_status()
-                    payload = await response.json()
+                    text = await response.text()
+                    payload = json.loads(text)
+            except json.JSONDecodeError as err:
+                preview = text[:120].replace("\n", " ")
+                raise UpdateFailed(
+                    f"Failed to decode JSON from {device.host}: {preview}"
+                ) from err
             except (ClientError, TimeoutError, ValueError) as err:
                 raise UpdateFailed(f"Failed to read {device.host}: {err}") from err
 
