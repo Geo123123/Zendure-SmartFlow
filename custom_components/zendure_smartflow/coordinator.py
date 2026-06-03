@@ -129,6 +129,10 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
     @property
     def devices(self) -> list[ZendureDevice]:
         """Return configured Zendure devices."""
+        configured_devices = self.config_entry.options.get(
+            CONF_ZENDURE_DEVICES,
+            self.config_entry.data.get(CONF_ZENDURE_DEVICES, []),
+        )
         return [
             ZendureDevice(
                 host=item["host"],
@@ -136,7 +140,7 @@ class SmartFlowCoordinator(DataUpdateCoordinator[SmartFlowData]):
                 product_key=item.get("product_key"),
                 device_id=item.get("device_id"),
             )
-            for item in self.config_entry.data[CONF_ZENDURE_DEVICES]
+            for item in configured_devices
         ]
 
     @property

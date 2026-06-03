@@ -232,7 +232,7 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -240,18 +240,16 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
         """Manage options."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            protocol = user_input[CONF_CONTROL_PROTOCOL]
-            devices = _device_list(user_input.pop(CONF_ZENDURE_DEVICES, ""), protocol)
+            protocol = user_input.get(CONF_CONTROL_PROTOCOL, DEFAULT_CONTROL_PROTOCOL)
+            devices = _device_list(user_input.get(CONF_ZENDURE_DEVICES, ""), protocol)
             if len(devices) != 1:
                 errors[CONF_ZENDURE_DEVICES] = "need_one_device"
             else:
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data={**self.config_entry.data, CONF_ZENDURE_DEVICES: devices},
-                )
-                return self.async_create_entry(title="", data=user_input)
+                options = dict(user_input)
+                options[CONF_ZENDURE_DEVICES] = devices
+                return self.async_create_entry(title="", data=options)
 
-        options = {**self.config_entry.data, **self.config_entry.options}
+        options = {**self._config_entry.data, **self._config_entry.options}
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -272,7 +270,7 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
                     ),
                     vol.Required(
                         CONF_ZENDURE_DEVICES,
-                        default=_device_text(self.config_entry.data[CONF_ZENDURE_DEVICES]),
+                        default=_device_text(options.get(CONF_ZENDURE_DEVICES, [])),
                     ): selector.TextSelector(
                         selector.TextSelectorConfig(multiline=True)
                     ),
