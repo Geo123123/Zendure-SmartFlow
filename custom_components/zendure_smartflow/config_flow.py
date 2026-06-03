@@ -92,6 +92,20 @@ def _device_text(devices: list[dict[str, str]] | None) -> str:
     return "\n".join(lines)
 
 
+def _coerce_float(value: Any) -> float:
+    """Coerce localized number input to float."""
+    if isinstance(value, str):
+        value = value.strip().replace(",", ".")
+    return float(value)
+
+
+def _coerce_int(value: Any) -> int:
+    """Coerce localized number input to int."""
+    if isinstance(value, str):
+        value = value.strip().replace(",", ".")
+    return int(float(value))
+
+
 class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Zendure SmartFlow."""
 
@@ -304,7 +318,7 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(
                         CONF_MQTT_PORT,
                         default=options.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT),
-                    ): int,
+                    ): _coerce_int,
                     vol.Optional(
                         CONF_MQTT_USERNAME,
                         default=options.get(CONF_MQTT_USERNAME, ""),
@@ -324,35 +338,35 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
                         default=options.get(
                             CONF_TARGET_GRID_POWER, DEFAULT_TARGET_GRID_POWER
                         ),
-                    ): float,
+                    ): _coerce_float,
                     vol.Optional(
                         CONF_DEADBAND,
                         default=options.get(CONF_DEADBAND, DEFAULT_DEADBAND),
-                    ): float,
+                    ): _coerce_float,
                     vol.Optional(
                         CONF_INTERVAL,
                         default=options.get(CONF_INTERVAL, DEFAULT_INTERVAL),
-                    ): int,
+                    ): _coerce_int,
                     vol.Optional(
                         CONF_MAX_CHARGE_PER_DEVICE,
                         default=options.get(
                             CONF_MAX_CHARGE_PER_DEVICE, DEFAULT_MAX_CHARGE_PER_DEVICE
                         ),
-                    ): float,
+                    ): _coerce_float,
                     vol.Optional(
                         CONF_MIN_CHANGE,
                         default=options.get(CONF_MIN_CHANGE, DEFAULT_MIN_CHANGE),
-                    ): float,
+                    ): _coerce_float,
                     vol.Optional(
                         CONF_RESPONSE_FACTOR,
                         default=options.get(
                             CONF_RESPONSE_FACTOR, DEFAULT_RESPONSE_FACTOR
                         ),
-                    ): float,
+                    ): _coerce_float,
                     vol.Optional(
                         CONF_RESERVE_SOC,
                         default=options.get(CONF_RESERVE_SOC, DEFAULT_RESERVE_SOC),
-                    ): float,
+                    ): _coerce_float,
                     vol.Optional(
                         CONF_ENABLED,
                         default=options.get(CONF_ENABLED, DEFAULT_ENABLED),
