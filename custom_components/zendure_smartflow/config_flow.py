@@ -100,8 +100,8 @@ class SmartFlowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             protocol = user_input[CONF_CONTROL_PROTOCOL]
             devices = _device_list(user_input[CONF_ZENDURE_DEVICES], protocol)
 
-            if len(devices) != 3:
-                errors[CONF_ZENDURE_DEVICES] = "need_three_devices"
+            if len(devices) != 1:
+                errors[CONF_ZENDURE_DEVICES] = "need_one_device"
             else:
                 await self.async_set_unique_id("zendure_smartflow")
                 self._abort_if_unique_id_configured()
@@ -242,8 +242,8 @@ class SmartFlowOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             protocol = user_input[CONF_CONTROL_PROTOCOL]
             devices = _device_list(user_input.pop(CONF_ZENDURE_DEVICES, ""), protocol)
-            if len(devices) != 3:
-                errors[CONF_ZENDURE_DEVICES] = "need_three_devices"
+            if len(devices) != 1:
+                errors[CONF_ZENDURE_DEVICES] = "need_one_device"
             else:
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,

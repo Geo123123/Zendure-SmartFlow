@@ -1,10 +1,10 @@
 # Zendure SmartFlow
 
-Home-Assistant-Custom-Integration fuer eine PV-Ueberschussladung mit drei Zendure SolarFlow 2400 Pro und einem Shelly EM3.
+Home-Assistant-Custom-Integration fuer eine PV-Ueberschussladung mit einem Zendure SolarFlow 2400 Pro und einem Shelly EM3.
 
 ## Regelprinzip
 
-Zendure SmartFlow liest die Shelly-Netzleistung aus Home Assistant und regelt drei Zendure-Geraete auf Ueberschussladung.
+Zendure SmartFlow liest die Shelly-Netzleistung aus Home Assistant und regelt ein Zendure-Geraet auf Ueberschussladung.
 
 - Status lesen: `GET http://<ip>/properties/report`
 - Stellbefehle: wahlweise lokal per HTTP oder ueber Home-Assistant-MQTT
@@ -29,8 +29,6 @@ Geraeteformat:
 
 ```text
 192.168.1.41,WOB123456789
-192.168.1.42,WOB123456790
-192.168.1.43,WOB123456791
 ```
 
 ### MQTT
@@ -44,9 +42,7 @@ iot/<productKey>/<deviceId>/properties/write
 Geraeteformat:
 
 ```text
-192.168.1.41,WOB123456789,PRODUCTKEY1,DEVICEID1
-192.168.1.42,WOB123456790,PRODUCTKEY2,DEVICEID2
-192.168.1.43,WOB123456791,PRODUCTKEY3,DEVICEID3
+192.168.1.41,WOB123456789,PRODUCTKEY,DEVICEID
 ```
 
 Auch im MQTT-Modus wird die IP gebraucht, weil SmartFlow den aktuellen Status per lokaler ZenSDK-HTTP-API liest.
@@ -60,8 +56,8 @@ Danach unter **Einstellungen > Geraete & Dienste > Integration hinzufuegen** nac
 ## Benoetigte Daten
 
 1. Shelly EM3 Netzleistung als Sensor, z. B. `sensor.shelly_em3_total_power`.
-2. IP-Adresse und Seriennummer jedes Zendure SolarFlow 2400 Pro.
-3. Fuer MQTT zusaetzlich `productKey` und `deviceId` je Geraet.
+2. IP-Adresse und Seriennummer des Zendure SolarFlow 2400 Pro.
+3. Fuer MQTT zusaetzlich `productKey` und `deviceId` des Geraets.
 
 ## Wichtige Parameter
 
